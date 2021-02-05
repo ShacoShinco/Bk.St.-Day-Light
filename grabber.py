@@ -1,10 +1,17 @@
 import urllib.request
 from bs4 import BeautifulSoup
-from re import split
+from re import split, sub
 from datetime import datetime
 from datetime import timedelta
 
-class MineEngine(object):
+from requests import get
+
+from datetime import datetime
+
+import pickle
+class grabber(object):
+    pass
+class Engine(object):
     def __init__(self):
         super().__init__()
         self.mainPage = self.getMainPage()
@@ -45,4 +52,81 @@ class MineEngine(object):
         bs = self.bsObject
         return split("\D+", bs.select("#boardstats_e > tr:nth-child(2) > td").__str__())[7]
 
-print(MineEngine().getOnlineUserNumber())
+
+class ChatBoxGrabber():
+
+    class Data(object):
+
+        def __init__(self, id, user, message, time):
+            self.id = id
+            self.message = message
+            self.user = user
+            self.time = time
+        
+        def __repr__(self):
+                return self.user + " at " + self.time.__str__() + " said : '" + self.message + "'" + "\n"
+    
+    def __init__(self):
+        self.dataSet = {}
+
+    def urlOf(self, pageNumber):
+        return "http://baker-forum.ir/index.php?action=shoutbox_archive&page=" + pageNumber.__str__()
+    
+    @classmethod
+    def getData(cls, url):
+        start = datetime.now()
+        raw = get(url)
+        while raw.status_code != 200:
+            print("problem with fetching " + url)
+            raw = get(url)
+
+        page = sub('" class=".*" />', ':' ,sub('<img src="h.*title="', ':' ,raw.text))
+        page
+        bs = BeautifulSoup(page, 'html.parser')
+        data = {}
+
+        entries = bs.select(".entry")
+
+        for entry in entries:
+            id = int(entry["data-id"])
+            user = str(entry["data-username"])
+            message = str(entry.select(".text")[0].string)
+            time = datetime.strptime(entry.select(".date")[0].string, '%H:%M:%S').time()
+            data[id] = cls.Data(id, user, message, time)
+        print (str(min(data.keys())) + " to " + str(max(data.keys())) + " page :" + url + " grabbed! time :" + (datetime.now() - start).total_seconds().__str__())
+        return data
+    
+    def grab(self, timeD):
+        page = 1
+        start = datetime.now()
+        while datetime.now() < start + timeD:
+            self.dataSet.update(self.getData(self.urlOf(page)))
+            print("page " + page.__str__() + " done!")
+            page += 1
+        return self.dataSet
+
+    def grabAll(self):
+        page = 1
+        while page <= 3546:
+            self.dataSet.update(self.getData(self.urlOf(page)))
+            print("page " + page.__str__() + " done!" + str(int(page*100/3546)) + "%")
+            page += 1
+        return self.dataSet
+
+    def grabNew(self):
+        page = 1
+        while page <= 3546:
+            temp = self.getData(self.urlOf(page))
+            if max(temp.keys()) in self.dataSet.keys() or len(temp)==0:
+                print("Updated!")
+                return self.dataSet
+            self.dataSet.update(temp)
+            page += 1
+        print("Updated!")
+        return self.dataSet
+
+
+if __name__ == "__main__":
+    a = ChatBoxGrabber()
+    a.dataSet = pickle.load(open('data.pickle', 'rb'))
+    pickle.dump(a.grabNew(), open('data.pickle', 'wb'))
